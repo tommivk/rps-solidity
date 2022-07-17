@@ -1,6 +1,7 @@
 const rps = artifacts.require("rps");
 const truffleAssert = require("truffle-assertions");
 const { toBN } = web3.utils;
+const { time } = require("@openzeppelin/test-helpers");
 
 contract("Contract tests", (accounts) => {
   let rpsInstance;
@@ -27,7 +28,38 @@ contract("Contract tests", (accounts) => {
     );
   });
 
-  it("Player A should be able to commit", async () => {
+  it("Player A should be able to commit when sufficient amount is sent", async () => {
+    const hash = web3.utils.keccak256("random");
+
+    await rpsInstance.commit(hash, {
+      from: accountA,
+      value: web3.utils.toWei("0.01", "ether"),
+    });
+
+    const playerACommitment = await rpsInstance.playerACommitment();
+    const playerA = await rpsInstance.playerA();
+    assert.equal(hash, playerACommitment);
+    assert.equal(playerA, accountA);
+  });
+
+  it("Player A should be able to leave the game and balance should be increased by the bet", async () => {
+    const beforeBalance = toBN(await web3.eth.getBalance(accountA));
+    const receipt = await rpsInstance.leaveGame({from: accountA});
+    const afterBalance = toBN(await web3.eth.getBalance(accountA));
+
+    const gasUsed = toBN(receipt.receipt.gasUsed);
+    const tx = await web3.eth.getTransaction(receipt.tx);
+    const gasPrice = toBN(tx.gasPrice);
+    const gasTotal = gasPrice.mul(gasUsed);
+    const balanceIncreaseInWei = afterBalance.add(gasTotal).sub(beforeBalance);
+    const balanceIncrease = web3.utils.fromWei(balanceIncreaseInWei.toString());
+    
+    assert.equal(0.01, balanceIncrease);
+    assert.equal(0x0, await rpsInstance.playerA());
+    assert.equal(0x0, await rpsInstance.playerACommitment());
+  })
+
+  it("Player A should be able to commit again after leaving the game", async () => {
     playerASecret = web3.utils.randomHex(32);
 
     const values = web3.utils.encodePacked(
@@ -91,6 +123,10 @@ contract("Contract tests", (accounts) => {
       "Game is full"
     );
   });
+
+  it("Player A should not be able to leave the game after playerB has committed", async () => {
+    await truffleAssert.reverts(rpsInstance.leaveGame({from: accountA}));
+  })
 
   it("Third player should not be able to commit", async () => {
     await truffleAssert.reverts(
