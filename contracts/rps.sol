@@ -25,6 +25,8 @@ contract rps {
     bool public winnerDeclared = false;
     bool public playerACanWithdraw = false;
     bool public playerBCanWithdraw = false;
+    uint256 public playersCommittedTime;
+    uint256 constant public timeout = 10 minutes;
 
     function commit(bytes32 _commitment) public payable {
         require(playerB == address(0), "Game is full");
@@ -37,6 +39,7 @@ contract rps {
             require(playerA != msg.sender, "You have already joined");
             playerB = payable(msg.sender);
             playerBCommitment = _commitment;
+            playersCommittedTime = block.timestamp;
         }
     }
 
@@ -66,7 +69,7 @@ contract rps {
             playerAChoice != Move.NULL && playerBChoice != Move.NULL,
             "Both players must have revealed"
         );
-        require(!winnerDeclared);
+        require(!winnerDeclared, "The winner has already been declared");
 
         winnerDeclared = true;
 
@@ -119,5 +122,43 @@ contract rps {
             (bool sent, ) = playerB.call{value: bet}("");
             require(sent, "Failed to withdraw");
         }
+    }
+
+    bool timeoutCalled = false;
+
+    function playerATimeout() public {
+        require(playerACommitment != 0 && playerBCommitment != 0, "Both players must have committed");
+        require(playerAChoice == Move.NULL);
+        require(block.timestamp > (playersCommittedTime + timeout));
+        require(!timeoutCalled);
+
+        timeoutCalled = true;
+
+        (bool sent, ) = playerB.call{value: bet * 2}("");
+        require(sent, "Failed to withdraw");
+    }
+
+    function playerBTimeout() public {
+        require(playerACommitment != 0 && playerBCommitment != 0, "Both players must have committed");
+        require(playerBChoice == Move.NULL);
+        require(block.timestamp > (playersCommittedTime + timeout));
+        require(!timeoutCalled);
+
+        timeoutCalled = true;
+
+        (bool sent, ) = playerA.call{value: bet * 2}("");
+        require(sent, "Failed to withdraw");
+    }
+
+    function leaveGame() public {
+        require(msg.sender == playerA);
+        require(playerB == address(0));
+
+        address payable to = payable(msg.sender);
+        playerA = payable(address(0));
+        playerACommitment = 0x0;
+
+        (bool sent, ) = to.call{value: bet}("");
+        require(sent, "Failed to withdraw");
     }
 }
