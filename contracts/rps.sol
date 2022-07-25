@@ -46,12 +46,7 @@ contract rps {
     function reveal(Move _choice, bytes32 _secret) public {
         require(msg.sender == playerA || msg.sender == playerB, "You're not a player");
         require(playerACommitment != 0 && playerBCommitment != 0, "Both players must have committed");
-        require(
-            _choice == Move.Rock ||
-             _choice == Move.Paper ||
-              _choice == Move.Scissors, 
-            "Invalid move"
-        );
+        require(_choice != Move.NULL, "Invalid move");
 
         if (msg.sender == playerA) {
             require(keccak256(abi.encodePacked(msg.sender, _choice, _secret)) == playerACommitment, "Invalid parameters sent");
