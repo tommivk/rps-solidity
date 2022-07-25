@@ -154,11 +154,10 @@ contract rps {
         require(msg.sender == playerA);
         require(playerB == address(0));
 
-        address payable to = payable(msg.sender);
         playerA = payable(address(0));
         playerACommitment = 0x0;
 
-        (bool sent, ) = to.call{value: bet}("");
+        (bool sent, ) = payable(msg.sender).call{value: bet}("");
         require(sent, "Failed to withdraw");
     }
 }
